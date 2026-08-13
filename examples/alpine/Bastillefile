@@ -1,0 +1,12 @@
+# Alpine Linux VM (serial-friendly bootloader: no framebuffer needed).
+# Default cloud user: alpine. NIC comes up as eth0.
+VM
+CPU 1
+MEM 1G
+BOOTROM uefi
+DISK disk0 8G source=https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/cloud/generic_alpine-3.21.7-x86_64-uefi-cloudinit-r0.qcow2
+NIC jailbridge
+CLOUDINIT user-data
+NETWORK_CONFIG network-config
+OS Alpine-3.21
+ADDRESS 192.0.2.10

@@ -1,0 +1,12 @@
+# Ubuntu 24.04 (noble). Default cloud user: ubuntu. Serial-friendly GRUB: no
+# framebuffer needed.
+VM
+CPU 2
+MEM 2G
+BOOTROM uefi
+DISK disk0 20G source=https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+NIC jailbridge
+CLOUDINIT user-data
+NETWORK_CONFIG network-config
+OS Ubuntu-24.04
+ADDRESS 192.0.2.13

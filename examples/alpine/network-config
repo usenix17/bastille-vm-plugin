@@ -1,0 +1,12 @@
+# Alpine renders with cloud-init's busybox/eni backend.
+# PITFALL: the v2 "routes:" form breaks ifup on busybox (post-up route add
+# fails and the whole interface aborts). Use "gateway4:" instead. NIC is eth0.
+version: 2
+ethernets:
+  eth0:
+    dhcp4: false
+    addresses: [192.0.2.10/24]
+    gateway4: 192.0.2.1
+    nameservers:
+      addresses: [192.0.2.53]
+      search: [example.com]

@@ -1,0 +1,16 @@
+# Rocky Linux 9 (RHEL family). Default cloud user: rocky. NIC comes up as eth0
+# (image sets net.ifnames=0).
+# PITFALL: RHEL-family GRUB uses gfxterm and STALLS at boot on a headless serial
+# console. A FRAMEBUFFER is required. The plugin auto-attaches one for detected
+# RHEL-family guests, but declaring it explicitly is clearest.
+VM
+CPU 2
+MEM 2G
+BOOTROM uefi
+DISK disk0 20G source=https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2
+NIC jailbridge
+CLOUDINIT user-data
+NETWORK_CONFIG network-config
+FRAMEBUFFER 127.0.0.1:5900
+OS Rocky-9
+ADDRESS 192.0.2.11

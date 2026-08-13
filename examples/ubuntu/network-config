@@ -1,0 +1,14 @@
+# Ubuntu renders with netplan. NIC is enp0s4 (net.ifnames=1), so match by glob.
+# "gateway4:" still works (deprecated but honored); netplan also accepts a
+# "routes: [{to: default, via: ...}]" block if you prefer the modern form.
+version: 2
+ethernets:
+  primary:
+    match:
+      name: "en*"
+    dhcp4: false
+    addresses: [192.0.2.13/24]
+    gateway4: 192.0.2.1
+    nameservers:
+      addresses: [192.0.2.53]
+      search: [example.com]

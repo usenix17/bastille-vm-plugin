@@ -1,0 +1,12 @@
+# Rocky renders with cloud-init's NetworkManager backend.
+# PITFALL: the NM backend does NOT honor "match:" -- name the interface
+# explicitly. The image sets net.ifnames=0, so the NIC is eth0. Use "gateway4:".
+version: 2
+ethernets:
+  eth0:
+    dhcp4: false
+    addresses: [192.0.2.11/24]
+    gateway4: 192.0.2.1
+    nameservers:
+      addresses: [192.0.2.53]
+      search: [example.com]

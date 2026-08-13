@@ -1,0 +1,4 @@
+#cloud-config
+hostname: alpine-vm
+ssh_authorized_keys:
+  - ssh-ed25519 AAAA...replace-with-your-key... you@host

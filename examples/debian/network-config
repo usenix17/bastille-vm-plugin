@@ -1,0 +1,13 @@
+# PITFALL: Debian keeps net.ifnames=1, so the NIC is enp0s4 (PCI slot), NOT
+# eth0. Match by glob so the name/slot does not matter. Use "gateway4:".
+version: 2
+ethernets:
+  primary:
+    match:
+      name: "en*"
+    dhcp4: false
+    addresses: [192.0.2.12/24]
+    gateway4: 192.0.2.1
+    nameservers:
+      addresses: [192.0.2.53]
+      search: [example.com]
