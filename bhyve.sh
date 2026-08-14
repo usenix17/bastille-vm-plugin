@@ -656,18 +656,30 @@ vm_generate_run_script() {
 vm_name="${vm_name}"
 args_file="${bastille_vmdir}/${vm_name}/bhyve.args"
 
+_fails=0
 while :; do
     # Destroy any prior vmm instance first. bhyve does not tear down
     # /dev/vmm/<name> on exit, so this must run before every boot -- including
     # a guest-requested reboot -- or the next bhyve would fail "already in use".
     /usr/sbin/bhyvectl --destroy --vm="\${vm_name}" >/dev/null 2>&1
+    _t0=\$(/bin/date +%s)
     # shellcheck disable=SC2046
     /usr/sbin/bhyve \$(/bin/cat "\${args_file}")
     rc=\$?
-    # 0 = guest requested reboot; anything else = power off / halt / error.
-    if [ "\${rc}" -ne 0 ]; then
-        break
+    # 0 = guest requested reboot -> relaunch.
+    if [ "\${rc}" -eq 0 ]; then
+        _fails=0
+        continue
     fi
+    # A non-zero exit within a few seconds is a startup failure -- e.g. the
+    # hardened jail's nmdm console losing the devfs clone-on-open race -- so
+    # retry a bounded number of times. A longer run is a real power off / halt.
+    if [ "\$((\$(/bin/date +%s) - _t0))" -lt 3 ] && [ "\${_fails}" -lt 10 ]; then
+        _fails=\$((_fails + 1))
+        /bin/sleep 1
+        continue
+    fi
+    break
 done
 
 /usr/sbin/bhyvectl --destroy --vm="\${vm_name}" >/dev/null 2>&1
@@ -1264,6 +1276,14 @@ vm_start() {
         return 1
     fi
 
+    # Ensure the host kernel modules a VM depends on are loaded. Jails cannot
+    # autoload modules, so bhyve inside the supervision jail fails cryptically
+    # ("Unable to initialize backend /dev/nmdm-...") if the host has never run a
+    # VM. vmm(4) runs the guest; nmdm(4) backs the serial console. For boot-time
+    # persistence add vmm_load / nmdm_load to /boot/loader.conf.
+    kldstat | grep -q vmm  || kldload vmm  >/dev/null 2>&1
+    kldstat | grep -q nmdm || kldload nmdm >/dev/null 2>&1
+
     local network_type="$(vm_get "${vm_name}" network_type)"
     : "${network_type:=shared}"
 
@@ -1590,6 +1610,101 @@ vm_clone() {
         bastille start "${newname}"
     elif [ "${live}" = "1" ]; then
         bastille start "${newname}"
+    fi
+
+    return 0
+}
+
+vm_migrate() {
+    ## Cold-migrate a stopped VM to another bhyve host over SSH. Because every VM
+    ## is its own ZFS dataset -- the manifest and cloud-init seed live in the
+    ## parent filesystem, the disks are child zvols -- one recursive replication
+    ## stream carries everything (vm.conf, settings, seed, disk images) in a
+    ## single send|recv. Derived artifacts (bhyve.args, supervisor.conf,
+    ## vm-run.sh, taps/epairs) are regenerated on the target at start, so only
+    ## the manifest and data need to travel.
+    local vm_name="${1}"
+    local dest="${2}"            # [user@]host
+    local do_start="${3:-0}"
+    local do_destroy="${4:-0}"
+    local nic_remap="${5:-}"     # optional: retarget the guest NIC bridge on dest
+
+    local vms_parent="${bastille_zfs_zpool}/${bastille_zfs_prefix}/vms"
+    local vms_ds="${vms_parent}/${vm_name}"
+    local snap="bastille-migrate-$(date +%Y%m%d%H%M%S)"
+    local rsh="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new ${dest}"
+
+    if ! checkyesno bastille_zfs_enable || [ -z "${bastille_zfs_zpool}" ]; then
+        error_exit "[ERROR]: VM migration requires ZFS."
+    fi
+
+    # Cold migration only: the guest disk must be quiescent.
+    if check_vm_is_running "${vm_name}"; then
+        error_exit "[ERROR]: Stop the VM before migrating: bastille -p vm stop ${vm_name}"
+    fi
+
+    info 1 "\nMigrating VM ${vm_name} -> ${dest} ..."
+
+    # Preflight: destination reachable.
+    if ! ${rsh} true 2>/dev/null; then
+        error_exit "[ERROR]: Cannot SSH to ${dest}. Set up key-based access (and passwordless sudo) first."
+    fi
+
+    # The destination may use a different ZFS pool/prefix than the source, so
+    # receive into ITS vms dataset (read from the destination's bastille.conf).
+    local dest_zpool dest_prefix dest_vms_parent dest_vms_ds
+    dest_zpool="$(${rsh} "sudo sysrc -f /usr/local/etc/bastille/bastille.conf -n bastille_zfs_zpool" 2>/dev/null)"
+    dest_prefix="$(${rsh} "sudo sysrc -f /usr/local/etc/bastille/bastille.conf -n bastille_zfs_prefix" 2>/dev/null)"
+    : "${dest_zpool:=${bastille_zfs_zpool}}"
+    : "${dest_prefix:=${bastille_zfs_prefix}}"
+    dest_vms_parent="${dest_zpool}/${dest_prefix}/vms"
+    dest_vms_ds="${dest_vms_parent}/${vm_name}"
+
+    if ${rsh} "sudo zfs list ${dest_vms_ds}" >/dev/null 2>&1; then
+        error_exit "[ERROR]: A VM named ${vm_name} already exists on ${dest}."
+    fi
+    if ! ${rsh} "sudo zfs list ${dest_vms_parent}" >/dev/null 2>&1; then
+        error_exit "[ERROR]: ${dest} has no ${dest_vms_parent} dataset. Create it (bootstrap bastille / install the plugin) first."
+    fi
+
+    # Snapshot the whole VM (parent fs + child zvols), then replicate it. Only
+    # used blocks move; a 20G disk with 1G written transfers ~1G.
+    if ! zfs snapshot -r "${vms_ds}@${snap}"; then
+        error_exit "[ERROR]: Failed to snapshot ${vms_ds}."
+    fi
+    info 1 "Replicating dataset to ${dest}:${dest_vms_ds} (transfers the disks)..."
+    if ! zfs send -R "${vms_ds}@${snap}" | ${rsh} "sudo zfs recv -u -F ${dest_vms_ds}"; then
+        zfs destroy -r "${vms_ds}@${snap}" 2>/dev/null
+        error_exit "[ERROR]: Replication to ${dest} failed."
+    fi
+
+    # Mount the received manifest filesystem at its mountpoint on the target.
+    ${rsh} "sudo zfs mount ${dest_vms_ds}" 2>/dev/null
+
+    # Retarget the guest NIC bridge on the destination if requested (hosts often
+    # name their bridge differently, e.g. jailbridge vs bridge0).
+    if [ -n "${nic_remap}" ]; then
+        info 1 "Retargeting NIC bridge to ${nic_remap} on ${dest}..."
+        ${rsh} "sudo sysrc -f ${bastille_vmdir}/${vm_name}/vm.conf nics=${nic_remap}" >/dev/null 2>&1
+    fi
+
+    # Drop the migration snapshots on both ends.
+    zfs destroy -r "${vms_ds}@${snap}" 2>/dev/null
+    ${rsh} "sudo zfs destroy -r ${dest_vms_ds}@${snap}" 2>/dev/null
+
+    info 1 "VM ${vm_name} migrated to ${dest}."
+
+    if [ "${do_start}" = "1" ]; then
+        info 1 "Starting ${vm_name} on ${dest}..."
+        ${rsh} "sudo bastille -p vm start ${vm_name}" || \
+            warn 1 "[WARNING]: Start on ${dest} failed; start it manually there."
+    fi
+
+    if [ "${do_destroy}" = "1" ]; then
+        info 1 "Removing the source copy of ${vm_name}..."
+        vm_destroy "${vm_name}" 0
+    else
+        warn 1 "[NOTE]: Source copy kept (stopped). It still holds ${vm_name}'s address -- do not run both."
     fi
 
     return 0

@@ -48,6 +48,7 @@ bastille -p vm restart [-b] [-i] NAME
 bastille -p vm console [-a] NAME                           # nmdm serial console
 bastille -p vm list    [-u|-d] [NAME]
 bastille -p vm clone   [-a|-l] [--reseed [--hostname H]] NAME NEW_NAME [ADDRESS]
+bastille -p vm migrate [-s] [-d] [--nic BRIDGE] NAME [user@]DESTHOST
 bastille -p vm destroy [-f] [-y] NAME
 ```
 
@@ -77,6 +78,33 @@ the generated NIC-name form; `--user-data`/`--network-config` supply your own
 cloud-init files verbatim; `--dhcp` uses DHCP instead of a static address. The
 default NIC bridge is `bastille_vm_bridge` (`bridge0`); set `--nic` (or that
 config knob) to your host's bridge.
+
+## Migration
+
+`migrate` cold-migrates a **stopped** VM to another bhyve host by ZFS replication.
+Because every VM is its own dataset (manifest + seed in the parent filesystem,
+disks as child zvols), one `zfs send -R | ssh | zfs recv` carries the whole VM;
+only used blocks move. The receive targets the destination's own pool/prefix, so
+the two hosts need not use the same pool.
+
+```sh
+bastille -p vm stop web1
+bastille -p vm migrate -s --nic bridge0 web1 cloud@host2   # -s: start on host2
+```
+
+- `-s` start on the destination after transfer; `-d` destroy the source copy;
+  `--nic BRIDGE` retargets the guest NIC (hosts often name bridges differently,
+  e.g. `jailbridge` vs `bridge0`).
+
+Destination requirements:
+
+- **SSH from the source `root`** to `[user@]DESTHOST` with keys (the plugin runs
+  as root), and **passwordless sudo** for that login user on the destination.
+- A ZFS `.../vms` dataset (bootstrap bastille / this plugin there).
+- To boot on arrival: `sysutils/edk2-bhyve`, the `vmm`/`nmdm` modules (the plugin
+  loads them), and a bridge matching the VM's `nics` (or use `--nic`).
+- `-s` uses `bastille -p vm start` on the destination, so its Bastille needs
+  plugin support (#1600).
 
 ## Template directives
 
