@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `plugin.conf` -- a sysrc-style plugin manifest (name, min_version,
+  depends_kmods, depends_pkg) following the format under discussion in
+  BastilleBSD/bastille#1600. Advisory today; consumed by Bastille once supported.
+
 ## [1.0.0] - 2026-08-14
 
 First stable release. Manage bhyve VMs as first-class peers of Bastille jails

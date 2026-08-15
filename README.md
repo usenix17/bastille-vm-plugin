@@ -221,8 +221,15 @@ that are unset:
 create.sh start.sh stop.sh restart.sh console.sh destroy.sh list.sh clone.sh
 vm.subr        glue: config defaults + check_vm* helpers, sources bhyve.sh
 bhyve.sh       the vm_* library
+plugin.conf    sysrc-style manifest (name, min_version, dependencies)
 examples/      known-good per-distro starter templates
 ```
+
+`plugin.conf` follows the manifest format being discussed in
+BastilleBSD/bastille#1600. It declares the short `-p` name (`vm`), the minimum
+Bastille version, and host dependencies (`vmm`/`nmdm` kmods, `edk2-bhyve` and
+`qemu-tools`). Bastille versions that don't read it simply ignore it; the plugin
+still loads the kmods itself at start.
 
 Each command sources core `common.sh`, then `vm.subr`; the library path is
 resolved from the script's own location, so the plugin works wherever it is
