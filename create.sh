@@ -67,6 +67,9 @@ usage() {
     --dhcp                   Use DHCP instead of a static address.
     --framebuffer            Attach a VNC framebuffer (needed by RHEL-family
                              guests; auto-added for those anyway).
+    --passthru B/S/F         Pass a physical PCI device (bus/slot/func, from
+                             pciconf) through to the guest. Repeatable. Needs an
+                             IOMMU and the device reserved by ppt(4).
     --user-data FILE         Use this cloud-init user-data verbatim.
     --network-config FILE    Use this cloud-init network-config verbatim.
 
@@ -191,6 +194,7 @@ build_flag_template() {
 
     # Framebuffer + OS + ADDRESS metadata.
     [ "${FB_FB}" -eq 1 ] && printf 'FRAMEBUFFER\n' >> "${td}/Bastillefile"
+    for _pt in ${FB_PASSTHRU}; do printf 'PASSTHRU %s\n' "${_pt}" >> "${td}/Bastillefile"; done
     [ -n "${FB_OS}" ] && printf 'OS %s\n' "${FB_OS}" >> "${td}/Bastillefile"
     [ -n "${FB_ADDR}" ] && printf 'ADDRESS %s\n' "${FB_ADDR%%/*}" >> "${td}/Bastillefile"
 
@@ -202,7 +206,7 @@ VNET=0
 FB_IMAGE=""; FB_ISO=""; FB_CPU="2"; FB_MEM="2G"; FB_DISK="20G"; FB_BOOTROM="uefi"
 FB_NIC=""; FB_OS=""; FB_HOSTNAME=""; FB_SSHKEY=""; FB_SSHKEYFILE=""
 FB_ADDR=""; FB_GW=""; FB_DNS=""; FB_SEARCH=""; FB_IFACE=""; FB_DHCP=0
-FB_FB=0; FB_USERDATA=""; FB_NETCONF=""; HAVE_BUILD_FLAGS=0
+FB_FB=0; FB_USERDATA=""; FB_NETCONF=""; FB_PASSTHRU=""; HAVE_BUILD_FLAGS=0
 while [ "$#" -gt 0 ]; do
     case "${1}" in
         -h|--help|help)           usage ;;
@@ -225,6 +229,7 @@ while [ "$#" -gt 0 ]; do
         --net-iface)              FB_IFACE="${2}"; HAVE_BUILD_FLAGS=1; shift 2 ;;
         --dhcp)                   FB_DHCP=1; HAVE_BUILD_FLAGS=1; shift ;;
         --framebuffer|--vnc)      FB_FB=1; HAVE_BUILD_FLAGS=1; shift ;;
+        --passthru|--ppt)         FB_PASSTHRU="${FB_PASSTHRU}${FB_PASSTHRU:+ }${2}"; HAVE_BUILD_FLAGS=1; shift 2 ;;
         --user-data)              FB_USERDATA="${2}"; HAVE_BUILD_FLAGS=1; shift 2 ;;
         --network-config)         FB_NETCONF="${2}"; HAVE_BUILD_FLAGS=1; shift 2 ;;
         -*)                       error_exit "[ERROR]: Unknown Option: \"${1}\"" ;;

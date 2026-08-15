@@ -459,6 +459,12 @@ vm_load_devfs_ruleset() {
     for tap in $(cat "$(vm_taps_file "${vm_name}")" 2>/dev/null); do
         devfs rule -s "${rs}" add path "${tap}" unhide >/dev/null 2>&1
     done
+    # PCI passthrough: bhyve opens /dev/ppt<N> for each device. The unit isn't
+    # known here (it depends on host enumeration of reserved devices), so expose
+    # all ppt nodes when this VM declares any passthrough.
+    if [ -n "$(vm_get "${vm_name}" passthru)" ]; then
+        devfs rule -s "${rs}" add path 'ppt*' unhide >/dev/null 2>&1
+    fi
     # this VM's zvols: unhide each intermediate path component, then the leaf.
     local acc="zvol" comp
     devfs rule -s "${rs}" add path zvol unhide >/dev/null 2>&1
@@ -558,6 +564,7 @@ vm_generate_args() {
     local disks="$(vm_get "${vm_name}" disks)"
     local nics="$(vm_get "${vm_name}" nics)"
     local iso="$(vm_get "${vm_name}" iso)"
+    local passthru="$(vm_get "${vm_name}" passthru)"
 
     : "${cpu:=1}"
     : "${memory:=512M}"
@@ -576,6 +583,9 @@ vm_generate_args() {
         printf '%s\n' "-m ${memory}"
         # -A ACPI tables, -H yield on HLT, -P exit on PAUSE, -w ignore bad MSR.
         printf '%s\n' "-AHPw"
+        # Passing through a PCI device requires wiring the guest's RAM (-S), so
+        # the IOMMU can map it for DMA.
+        [ -n "${passthru}" ] && printf '%s\n' "-S"
         printf '%s\n' "-s 0,hostbridge"
         printf '%s\n' "-s 31,lpc"
         printf '%s\n' "-l bootrom,${bootrom}"
@@ -630,6 +640,14 @@ vm_generate_args() {
             printf '%s\n' "-s ${slot},xhci,tablet"
             slot=$((slot + 1))
         fi
+
+        # PCI passthrough devices (bus/slot/func selectors), each on its own
+        # guest PCI slot.
+        local ptdev
+        for ptdev in ${passthru}; do
+            printf '%s\n' "-s ${slot},passthru,${ptdev}"
+            slot=$((slot + 1))
+        done
 
         # The vmm(4) instance name is the VM name, matching the jail name.
         printf '%s\n' "${vm_name}"
@@ -997,6 +1015,7 @@ vm_create() {
     local M_CLOUDINIT=""
     local M_NETCONFIG=""
     local M_FRAMEBUFFER=""
+    local M_PASSTHRU=""
     local RDR_RULES=""
     local seen_vm=0
 
@@ -1107,6 +1126,22 @@ vm_create() {
                 done
                 M_FRAMEBUFFER="tcp=${fb_bind},w=${fb_w},h=${fb_h}${fb_wait}"
                 ;;
+            PASSTHRU|PPT)
+                # Pass a physical PCI device through to the guest. The value is
+                # the device's bus/slot/func selector (from pciconf, e.g.
+                # "172/0/0"). Repeatable. The device must be reserved by the ppt
+                # driver and the host must have an IOMMU (VT-d/AMD-Vi) enabled;
+                # the guest's RAM is wired (-S) automatically.
+                local pt
+                for pt in ${args}; do
+                    case "${pt}" in
+                        [0-9]*/[0-9]*/[0-9]*) ;;
+                        *) set +f; unset IFS
+                           error_exit "[ERROR]: PASSTHRU expects a bus/slot/func selector: ${pt}" ;;
+                    esac
+                    M_PASSTHRU="${M_PASSTHRU}${M_PASSTHRU:+ }${pt}"
+                done
+                ;;
             RDR)
                 RDR_RULES="${RDR_RULES}${args}
 "
@@ -1204,6 +1239,7 @@ vm_create() {
         fi
     fi
     vm_set "${vm_name}" framebuffer "${M_FRAMEBUFFER}"
+    vm_set "${vm_name}" passthru "${M_PASSTHRU}"
 
     # Guest OS label for 'bastille list' (Release column). Prefer an explicit
     # OS verb, else guess from the ISO name. Collapse whitespace to a single
@@ -1268,6 +1304,33 @@ vm_render_artifacts() {
     vm_generate_supervisor_conf "${vm_name}"
 }
 
+vm_passthru_preflight() {
+    ## Validate PCI passthrough prerequisites for a VM that declares PASSTHRU
+    ## devices: the host IOMMU must be active and each device must be reserved by
+    ## the ppt(4) driver. Returns non-zero with guidance on failure; a no-op for
+    ## VMs without passthrough.
+    local vm_name="${1}"
+    local passthru="$(vm_get "${vm_name}" passthru)"
+    [ -z "${passthru}" ] && return 0
+
+    if [ "$(sysctl -n hw.vmm.iommu.initialized 2>/dev/null)" != "1" ]; then
+        error_notify "[ERROR]: PCI passthrough needs an active IOMMU."
+        error_notify "Enable VT-d/AMD-Vi in firmware, and hw.vmm.iommu.enable=1."
+        return 1
+    fi
+    local dev sel
+    for dev in ${passthru}; do
+        sel="$(echo "${dev}" | tr '/' ':')"
+        if ! pciconf -l 2>/dev/null | grep -Eq "^ppt[0-9]+@pci0:${sel}:"; then
+            error_notify "[ERROR]: PCI device ${dev} is not reserved by ppt(4)."
+            error_notify "Reserve it now:   devctl set driver -f pci0:${sel} ppt"
+            error_notify "or persist it in /boot/loader.conf:   pptdevs=\"${passthru}\""
+            return 1
+        fi
+    done
+    return 0
+}
+
 vm_start() {
     local vm_name="${1}"
 
@@ -1283,6 +1346,11 @@ vm_start() {
     # persistence add vmm_load / nmdm_load to /boot/loader.conf.
     kldstat | grep -q vmm  || kldload vmm  >/dev/null 2>&1
     kldstat | grep -q nmdm || kldload nmdm >/dev/null 2>&1
+
+    # Validate PCI passthrough prerequisites (IOMMU active, devices ppt-bound).
+    if ! vm_passthru_preflight "${vm_name}"; then
+        return 1
+    fi
 
     local network_type="$(vm_get "${vm_name}" network_type)"
     : "${network_type:=shared}"

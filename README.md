@@ -119,8 +119,35 @@ A VM template is a `Bastillefile` of directives: `VM`, `CPU`, `MEM`, `BOOTROM`,
   don't need it. Defaults to `127.0.0.1:5900` at 1024x768. Example:
   `FRAMEBUFFER 0.0.0.0:5901`.
 
+- `PASSTHRU <bus>/<slot>/<func>` (alias `PPT`) -- pass a physical PCI device
+  through to the guest (repeatable). See PCI passthrough below.
+
 Known-good starter templates for each major distro are under
 [`examples/`](examples/).
+
+## PCI passthrough
+
+Give a guest direct ownership of a physical PCI device (NIC, GPU, HBA, ...) with
+`PASSTHRU b/s/f` in a template or `--passthru b/s/f` on `create`. The selector is
+the device's bus/slot/func from `pciconf -l` (e.g. `pci0:172:0:0` -> `172/0/0`).
+The plugin emits the bhyve `passthru` device and wires guest RAM (`-S`), and in a
+hardened jail exposes the `ppt` node in the private devfs.
+
+Host setup (once), because the device must leave the host and the IOMMU must map it:
+
+1. **Enable the IOMMU** in firmware (Intel VT-d / AMD-Vi). Verify:
+   `sysctl hw.vmm.iommu.initialized` returns `1`.
+2. **Reserve the device** for the `ppt(4)` driver, either persistently in
+   `/boot/loader.conf`:
+   ```
+   pptdevs="172/0/0"
+   ```
+   or at runtime: `devctl set driver -f pci0:172:0:0 ppt`. Confirm with
+   `pciconf -l | grep ppt`. A reserved device is unavailable to the host.
+
+`bastille -p vm start` preflights both and refuses with guidance if the IOMMU is
+inactive or the device isn't `ppt`-bound. Passthrough VMs can't be live-anything,
+and a passed-through device can't be shared with the host or another running VM.
 
 ## Guest OS pitfalls
 
