@@ -209,6 +209,10 @@ installed.
   integration, not something a plugin can provide. Manage it with the host
   `rc.d/bastille` hook or a dedicated rc script if you need boot ordering.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). Current release: **1.0.0**.
+
 ## License
 
 BSD-3-Clause. Copyright (c) 2026, Sasha Karcz. See [LICENSE](LICENSE).
