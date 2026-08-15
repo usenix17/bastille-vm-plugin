@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - `plugin.conf` -- a sysrc-style plugin manifest (name, min_version,
-  depends_kmods, depends_pkg) following the format under discussion in
+  depends_kmods, depends_pkgs) following the format under discussion in
   BastilleBSD/bastille#1600. Advisory today; consumed by Bastille once supported.
 
 ## [1.0.0] - 2026-08-14
