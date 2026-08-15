@@ -12,6 +12,31 @@ its own vnet, per-VM rctl); the plugin owns the VM lifecycle.
 > Independent, unofficial plugin. Not affiliated with or endorsed by the Bastille
 > project; "Bastille" is used here only to describe what this plugs into.
 
+## Quickstart
+
+On a Bastille host with plugin support (see [Requirements](#requirements)):
+
+```sh
+# Install: clone into plugins/vm so the command is `bastille -p vm`
+sharedir=$(bastille config -g bastille_sharedir 2>/dev/null || echo /usr/local/share/bastille)
+git clone https://github.com/usenix17/bastille-vm-plugin "${sharedir}/plugins/vm"
+
+# Create + boot a VM straight from a cloud image (no template needed)
+bastille -p vm create -V \
+  --image https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.raw \
+  --os debian --nic bridge0 \
+  --address 192.168.1.50 --gateway 192.168.1.1 --nameserver 192.168.1.53 \
+  --hostname web1 --ssh-key "$(cat ~/.ssh/id_ed25519.pub)" \
+  web1
+bastille -p vm start web1
+bastille -p vm console web1     # serial console; or ssh <cloud-user>@192.168.1.50
+```
+
+Set `--nic` to your host's bridge (default `bridge0`), `--os` guides distro
+quirks, and the cloud user is the image's default (`debian`, `ubuntu`, `alpine`,
+`rocky`, ...). Copy a ready-made per-distro template from
+[`examples/`](examples/), or read on for the full option set.
+
 ## Requirements
 
 - **Bastille with plugin support** (`bastille -p ...`), see
@@ -29,11 +54,11 @@ The command word after `-p` is the plugin's directory name, so install this into
 
 ```sh
 sharedir=$(bastille config -g bastille_sharedir 2>/dev/null || echo /usr/local/share/bastille)
-git clone https://github.com/<you>/bastille-vm-plugin "${sharedir}/plugins/vm"
+git clone https://github.com/usenix17/bastille-vm-plugin "${sharedir}/plugins/vm"
 ```
 
 Once #1600's install-by-URL is available you can instead
-`bastille -p https://github.com/<you>/bastille-vm-plugin` -- note that installs
+`bastille -p https://github.com/usenix17/bastille-vm-plugin` -- note that installs
 under the repo's name, so you would invoke it as `bastille -p bastille-vm-plugin`;
 cloning into `plugins/vm` keeps the shorter `bastille -p vm`.
 
