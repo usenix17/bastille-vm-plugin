@@ -71,7 +71,7 @@ bastille -p vm start   [-b] [-d SECS] NAME
 bastille -p vm stop    [-f] NAME
 bastille -p vm restart [-b] [-i] NAME
 bastille -p vm console [-a] NAME                           # nmdm serial console
-bastille -p vm list    [-u|-d|-v] [NAME]
+bastille -p vm list    [-u|-d] [NAME]
 bastille -p vm clone   [-a|-l] [--reseed [--hostname H]] NAME NEW_NAME [ADDRESS]
 bastille -p vm migrate [-s] [-d] [--nic BRIDGE] NAME [user@]DESTHOST
 bastille -p vm destroy [-f] [-y] NAME
@@ -80,14 +80,17 @@ bastille -p vm destroy [-f] [-y] NAME
 `-V|--vnet` gives the VM its own VNET supervision jail; the default is shared
 networking (guest tap on the host bridge).
 
-`list` defaults to a jail-style view (JID/NAME/BOOT/PRIORITY/STATE/IP/OS);
-`list -v` switches to a resource view:
+`list` shows identity/boot columns (JID, NAME, BOOT, PRIORITY, STATE, IP, OS)
+together with resource columns (DATASTORE, LOADER, CPU, MEMORY, VNC):
 
 ```
- NAME     DATASTORE LOADER CPU MEMORY VNC          AUTO STATE
- alpine1  zroot     uefi   1   1G     -            Yes  Running
- rocky9   zroot     uefi   2   2G     0.0.0.0:5901 Yes  Running
+ JID NAME     DATASTORE LOADER CPU MEMORY VNC          BOOT PRIORITY STATE IP            OS
+ 14  alpine1  zroot     uefi   1   1G     -            on   99       Up    192.168.1.244 Alpine-3.21
+ 26  rocky9   zroot     uefi   2   2G     0.0.0.0:5901 on   99       Up    192.168.1.246 Rocky-9
 ```
+
+`-u`/`-d` filter by running/stopped; DATASTORE is the ZFS pool, LOADER the
+bootrom type, VNC the framebuffer endpoint (or `-`).
 
 ### Template-less create (flags)
 

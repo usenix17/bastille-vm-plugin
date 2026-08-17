@@ -8,8 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- `list -v` / `--verbose`: a resource view (NAME, DATASTORE, LOADER, CPU, MEMORY,
-  VNC, AUTO, STATE) alongside the default jail-style columns.
+- `list` now includes resource columns (DATASTORE, LOADER, CPU, MEMORY, VNC)
+  alongside the existing JID/NAME/BOOT/PRIORITY/STATE/IP/OS.
 
 - `plugin.conf` -- a sysrc-style plugin manifest (name, min_version,
   depends_kmods, depends_pkgs) following the format under discussion in

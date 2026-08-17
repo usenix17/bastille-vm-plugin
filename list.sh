@@ -43,7 +43,6 @@ usage() {
 
     -d | --down      Show only stopped VMs.
     -u | --up        Show only running VMs.
-    -v | --verbose   Resource view: DATASTORE, LOADER, CPU, MEMORY, VNC, AUTO.
 
 EOF
     exit 1
@@ -51,7 +50,6 @@ EOF
 
 # Handle options
 OPT_STATE="all"
-VERBOSE=0
 while [ "$#" -gt 0 ]; do
     case "${1}" in
         -h|--help|help)
@@ -65,16 +63,11 @@ while [ "$#" -gt 0 ]; do
             OPT_STATE="Up"
             shift
             ;;
-        -v|--verbose)
-            VERBOSE=1
-            shift
-            ;;
         -*)
             for opt in $(echo "${1}" | sed 's/-//g' | fold -w1); do
                 case "${opt}" in
                     d) OPT_STATE="Down" ;;
                     u) OPT_STATE="Up" ;;
-                    v) VERBOSE=1 ;;
                     *) error_exit "[ERROR]: Unknown Option: \"${1}\"" ;;
                 esac
             done
@@ -131,52 +124,19 @@ if [ -z "${VM_LIST}" ]; then
     error_exit "[ERROR]: No VMs found."
 fi
 
-# Verbose (resource) view: NAME DATASTORE LOADER CPU MEMORY VNC AUTO STATE.
-if [ "${VERBOSE}" -eq 1 ]; then
-    DS="${bastille_zfs_zpool:--}"
-    W_NAME=4; W_DS=9; W_LOAD=6; W_CPU=3; W_MEM=6; W_VNC=3; W_AUTO=4; W_STATE=7
-    [ "${#DS}" -gt "${W_DS}" ] && W_DS="${#DS}"
-    for vm in ${VM_LIST}; do
-        [ -f "${bastille_vmdir}/${vm}/vm.conf" ] || continue
-        [ "${#vm}" -gt "${W_NAME}" ] && W_NAME="${#vm}"
-        _l="$(vm_row_loader "${vm}")"; [ "${#_l}" -gt "${W_LOAD}" ] && W_LOAD="${#_l}"
-        _c="$(vm_get "${vm}" cpu)"; _c="${_c:-1}"; [ "${#_c}" -gt "${W_CPU}" ] && W_CPU="${#_c}"
-        _m="$(vm_get "${vm}" memory)"; _m="${_m:-512M}"; [ "${#_m}" -gt "${W_MEM}" ] && W_MEM="${#_m}"
-        _v="$(vm_row_vnc "${vm}")"; [ "${#_v}" -gt "${W_VNC}" ] && W_VNC="${#_v}"
-    done
-
-    printf " %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s\n" \
-        "${W_NAME}" "NAME" "${W_DS}" "DATASTORE" "${W_LOAD}" "LOADER" "${W_CPU}" "CPU" \
-        "${W_MEM}" "MEMORY" "${W_VNC}" "VNC" "${W_AUTO}" "AUTO" "${W_STATE}" "STATE"
-
-    for vm in ${VM_LIST}; do
-        [ -f "${bastille_vmdir}/${vm}/vm.conf" ] || continue
-        if check_vm_is_running "${vm}"; then run=1; else run=0; fi
-        case "${OPT_STATE}" in
-            Up)   [ "${run}" -eq 1 ] || continue ;;
-            Down) [ "${run}" -eq 0 ] || continue ;;
-        esac
-        [ "${run}" -eq 1 ] && STATE="Running" || STATE="Stopped"
-
-        LOAD="$(vm_row_loader "${vm}")"
-        CPU="$(vm_get "${vm}" cpu)"; CPU="${CPU:-1}"
-        MEM="$(vm_get "${vm}" memory)"; MEM="${MEM:-512M}"
-        VNC="$(vm_row_vnc "${vm}")"
-        _boot="$(sysrc -f "${bastille_vmdir}/${vm}/settings.conf" -n boot 2>/dev/null)"
-        [ "${_boot}" = "on" ] && AUTO="Yes" || AUTO="No"
-
-        printf " %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s\n" \
-            "${W_NAME}" "${vm}" "${W_DS}" "${DS}" "${W_LOAD}" "${LOAD}" "${W_CPU}" "${CPU}" \
-            "${W_MEM}" "${MEM}" "${W_VNC}" "${VNC}" "${W_AUTO}" "${AUTO}" "${W_STATE}" "${STATE}"
-    done
-    exit 0
-fi
-
-# Column widths: start at the header labels, widen to the data.
-W_JID=3; W_NAME=4; W_BOOT=4; W_PRIO=8; W_STATE=5; W_IP=10; W_OS=7
+# Column widths: start at the header labels, widen to the data. Datastore is the
+# ZFS pool (one per host), so its width is fixed across rows.
+DS="${bastille_zfs_zpool:--}"
+W_JID=3; W_NAME=4; W_DS=9; W_LOAD=6; W_CPU=3; W_MEM=6; W_VNC=3
+W_BOOT=4; W_PRIO=8; W_STATE=5; W_IP=10; W_OS=7
+[ "${#DS}" -gt "${W_DS}" ] && W_DS="${#DS}"
 for vm in ${VM_LIST}; do
     [ -f "${bastille_vmdir}/${vm}/vm.conf" ] || continue
     [ "${#vm}" -gt "${W_NAME}" ] && W_NAME="${#vm}"
+    _l="$(vm_row_loader "${vm}")"; [ "${#_l}" -gt "${W_LOAD}" ] && W_LOAD="${#_l}"
+    _c="$(vm_get "${vm}" cpu)"; _c="${_c:-1}"; [ "${#_c}" -gt "${W_CPU}" ] && W_CPU="${#_c}"
+    _m="$(vm_get "${vm}" memory)"; _m="${_m:-512M}"; [ "${#_m}" -gt "${W_MEM}" ] && W_MEM="${#_m}"
+    _vnc="$(vm_row_vnc "${vm}")"; [ "${#_vnc}" -gt "${W_VNC}" ] && W_VNC="${#_vnc}"
     _ip="$(vm_get "${vm}" address)"; _ip="${_ip:--}"
     [ "${#_ip}" -gt "${W_IP}" ] && W_IP="${#_ip}"
     _os="$(vm_row_os "${vm}")"
@@ -184,9 +144,10 @@ for vm in ${VM_LIST}; do
 done
 
 # Header.
-printf " %-*s %-*s %-*s %-*s %-*s %-*s %-*s\n" \
-    "${W_JID}" "JID" "${W_NAME}" "NAME" "${W_BOOT}" "BOOT" "${W_PRIO}" "PRIORITY" \
-    "${W_STATE}" "STATE" "${W_IP}" "IP" "${W_OS}" "OS"
+printf " %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s\n" \
+    "${W_JID}" "JID" "${W_NAME}" "NAME" "${W_DS}" "DATASTORE" "${W_LOAD}" "LOADER" \
+    "${W_CPU}" "CPU" "${W_MEM}" "MEMORY" "${W_VNC}" "VNC" "${W_BOOT}" "BOOT" \
+    "${W_PRIO}" "PRIORITY" "${W_STATE}" "STATE" "${W_IP}" "IP" "${W_OS}" "OS"
 
 # Rows.
 for vm in ${VM_LIST}; do
@@ -202,12 +163,17 @@ for vm in ${VM_LIST}; do
     fi
 
     JID="$(jls -j "${vm}" jid 2>/dev/null)"; JID="${JID:--}"
+    LOAD="$(vm_row_loader "${vm}")"
+    CPU="$(vm_get "${vm}" cpu)"; CPU="${CPU:-1}"
+    MEM="$(vm_get "${vm}" memory)"; MEM="${MEM:-512M}"
+    VNC="$(vm_row_vnc "${vm}")"
     BOOT="$(sysrc -f "${bastille_vmdir}/${vm}/settings.conf" -n boot 2>/dev/null)"; BOOT="${BOOT:--}"
     PRIO="$(sysrc -f "${bastille_vmdir}/${vm}/settings.conf" -n priority 2>/dev/null)"; PRIO="${PRIO:--}"
     IP="$(vm_get "${vm}" address)"; IP="${IP:--}"
     OS="$(vm_row_os "${vm}")"
 
-    printf " %-*s %-*s %-*s %-*s %-*s %-*s %-*s\n" \
-        "${W_JID}" "${JID}" "${W_NAME}" "${vm}" "${W_BOOT}" "${BOOT}" "${W_PRIO}" "${PRIO}" \
-        "${W_STATE}" "${STATE}" "${W_IP}" "${IP}" "${W_OS}" "${OS}"
+    printf " %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s %-*s\n" \
+        "${W_JID}" "${JID}" "${W_NAME}" "${vm}" "${W_DS}" "${DS}" "${W_LOAD}" "${LOAD}" \
+        "${W_CPU}" "${CPU}" "${W_MEM}" "${MEM}" "${W_VNC}" "${VNC}" "${W_BOOT}" "${BOOT}" \
+        "${W_PRIO}" "${PRIO}" "${W_STATE}" "${STATE}" "${W_IP}" "${IP}" "${W_OS}" "${OS}"
 done
