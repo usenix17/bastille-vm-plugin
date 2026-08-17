@@ -4,16 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.0.1] - 2026-08-16
 
 ### Added
-
-- `list` now includes resource columns (DATASTORE, LOADER, CPU, MEMORY, VNC)
-  alongside the existing JID/NAME/BOOT/PRIORITY/STATE/IP/OS.
 
 - `plugin.conf` -- a sysrc-style plugin manifest (name, min_version,
   depends_kmods, depends_pkgs) following the format under discussion in
   BastilleBSD/bastille#1600. Advisory today; consumed by Bastille once supported.
+- `list` now includes resource columns (DATASTORE, LOADER, CPU, MEMORY, VNC)
+  alongside the existing JID/NAME/BOOT/PRIORITY/STATE/IP/OS.
 
 ## [1.0.0] - 2026-08-14
 
@@ -58,4 +57,5 @@ via the plugin mechanism (`bastille -p vm ...`). Each VM runs inside an
 - Live migration is out of scope: FreeBSD's GENERIC kernel lacks
   `BHYVE_SNAPSHOT`.
 
+[1.0.1]: https://github.com/usenix17/bastille-vm-plugin/releases/tag/v1.0.1
 [1.0.0]: https://github.com/usenix17/bastille-vm-plugin/releases/tag/v1.0.0

@@ -52,7 +52,7 @@
 # Plugin version (also in the VERSION file). Bastille's own bin reserves the
 # "version" option word, so it is exposed as data here, not a subcommand.
 # shellcheck disable=SC2034
-VM_PLUGIN_VERSION="1.0.0"
+VM_PLUGIN_VERSION="1.0.1"
 
 # VM (bhyve) configuration defaults. Real values, when set, come from
 # bastille.conf (already sourced by common.sh); these only fill the gaps so the
