@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Documentation and usage strings now use the `plugin` subcommand
+  (`bastille plugin vm ...`, short alias `bastille p vm ...`), matching the
+  now-merged BastilleBSD/bastille#1600. `-p` is Bastille's `--pretty` flag.
+- Install is now `bastille plugin <github-url>`, which reads `plugin.conf`,
+  installs under the manifest `name` (`vm`), and satisfies dependencies.
+
+### Fixed
+
+- `plugin.conf` `min_version` lowered to `1.4.4` (the version #1600 merged
+  under). `1.5.0` would have made `bastille plugin <url>` refuse to install.
+
 ## [1.0.1] - 2026-08-16
 
 ### Added

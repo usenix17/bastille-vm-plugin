@@ -36,8 +36,8 @@ VM_PLUGIN_DIR="$(dirname "$(realpath "$0")")"
 . "${VM_PLUGIN_DIR}/vm.subr"
 
 usage() {
-    error_notify "Usage: bastille -p vm create [option(s)] NAME TEMPLATE"
-    error_notify "       bastille -p vm create [option(s)] --image SRC NAME"
+    error_notify "Usage: bastille plugin vm create [option(s)] NAME TEMPLATE"
+    error_notify "       bastille plugin vm create [option(s)] --image SRC NAME"
     cat << EOF
 
     Create a VM from a template, or template-less from flags (--image or --iso).

@@ -1,7 +1,7 @@
 # bastille-vm-plugin
 
 First-class bhyve VM management for [Bastille](https://bastillebsd.org),
-delivered as a Bastille **plugin** (`bastille -p vm ...`).
+delivered as a Bastille **plugin** (`bastille plugin vm ...`).
 
 A VM is treated as a peer instance type to a jail: each VM runs its bhyve(8)
 device model inside a minimal, auto-generated supervision jail (`allow.vmm`), so
@@ -17,19 +17,18 @@ its own vnet, per-VM rctl); the plugin owns the VM lifecycle.
 On a Bastille host with plugin support (see [Requirements](#requirements)):
 
 ```sh
-# Install: clone into plugins/vm so the command is `bastille -p vm`
-sharedir=$(bastille config -g bastille_sharedir 2>/dev/null || echo /usr/local/share/bastille)
-git clone https://github.com/usenix17/bastille-vm-plugin "${sharedir}/plugins/vm"
+# Install straight from GitHub (bootstrap reads plugin.conf, installs as "vm")
+bastille plugin https://github.com/usenix17/bastille-vm-plugin
 
 # Create + boot a VM straight from a cloud image (no template needed)
-bastille -p vm create -V \
+bastille plugin vm create -V \
   --image https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.raw \
   --os debian --nic bridge0 \
   --address 192.168.1.50 --gateway 192.168.1.1 --nameserver 192.168.1.53 \
   --hostname web1 --ssh-key "$(cat ~/.ssh/id_ed25519.pub)" \
   web1
-bastille -p vm start web1
-bastille -p vm console web1     # serial console; or ssh <cloud-user>@192.168.1.50
+bastille plugin vm start web1
+bastille plugin vm console web1     # serial console; or ssh <cloud-user>@192.168.1.50
 ```
 
 Set `--nic` to your host's bridge (default `bridge0`), `--os` guides distro
@@ -39,9 +38,9 @@ quirks, and the cloud user is the image's default (`debian`, `ubuntu`, `alpine`,
 
 ## Requirements
 
-- **Bastille with plugin support** (`bastille -p ...`), see
-  [BastilleBSD/bastille#1600](https://github.com/BastilleBSD/bastille/pull/1600).
-  Until that ships in a release, apply the plugin patch to your Bastille.
+- **Bastille with the `plugin` subcommand** (merged in
+  [BastilleBSD/bastille#1600](https://github.com/BastilleBSD/bastille/pull/1600));
+  use a Bastille that includes it.
 - `vmm(4)`, `nmdm(4)`, `if_bridge(4)`, `if_tap(4)`, and `if_epair(4)` (VNET mode).
 - `sysutils/edk2-bhyve` -- UEFI firmware for the guest bootrom.
 - `sysutils/qemu-tools` -- only if you boot from a `qcow2` image (`qemu-img`
@@ -49,32 +48,31 @@ quirks, and the cloud user is the image's default (`debian`, `ubuntu`, `alpine`,
 
 ## Install
 
-The command word after `-p` is the plugin's directory name, so install this into
-`plugins/vm` to get `bastille -p vm ...`:
+Bootstrap it straight from GitHub. Bastille reads the repo's `plugin.conf`,
+installs the plugin under its manifest `name` (`vm`), checks the minimum Bastille
+version, and loads/installs the declared dependencies:
 
 ```sh
-sharedir=$(bastille config -g bastille_sharedir 2>/dev/null || echo /usr/local/share/bastille)
-git clone https://github.com/usenix17/bastille-vm-plugin "${sharedir}/plugins/vm"
+bastille plugin https://github.com/usenix17/bastille-vm-plugin
 ```
 
-Once #1600's install-by-URL is available you can instead
-`bastille -p https://github.com/usenix17/bastille-vm-plugin` -- note that installs
-under the repo's name, so you would invoke it as `bastille -p bastille-vm-plugin`;
-cloning into `plugins/vm` keeps the shorter `bastille -p vm`.
+That gives you `bastille plugin vm ...` (or the short `bastille p vm ...`). Run
+the same command again later to update (it `git pull`s in place). To install by
+hand instead, clone into `${bastille_sharedir}/plugins/vm`.
 
 ## Usage
 
 ```sh
-bastille -p vm create [-V|--vnet] NAME TEMPLATE            # from a template
-bastille -p vm create [-V|--vnet] --image SRC [flags] NAME # template-less
-bastille -p vm start   [-b] [-d SECS] NAME
-bastille -p vm stop    [-f] NAME
-bastille -p vm restart [-b] [-i] NAME
-bastille -p vm console [-a] NAME                           # nmdm serial console
-bastille -p vm list    [-u|-d] [NAME]
-bastille -p vm clone   [-a|-l] [--reseed [--hostname H]] NAME NEW_NAME [ADDRESS]
-bastille -p vm migrate [-s] [-d] [--nic BRIDGE] NAME [user@]DESTHOST
-bastille -p vm destroy [-f] [-y] NAME
+bastille plugin vm create [-V|--vnet] NAME TEMPLATE            # from a template
+bastille plugin vm create [-V|--vnet] --image SRC [flags] NAME # template-less
+bastille plugin vm start   [-b] [-d SECS] NAME
+bastille plugin vm stop    [-f] NAME
+bastille plugin vm restart [-b] [-i] NAME
+bastille plugin vm console [-a] NAME                           # nmdm serial console
+bastille plugin vm list    [-u|-d] [NAME]
+bastille plugin vm clone   [-a|-l] [--reseed [--hostname H]] NAME NEW_NAME [ADDRESS]
+bastille plugin vm migrate [-s] [-d] [--nic BRIDGE] NAME [user@]DESTHOST
+bastille plugin vm destroy [-f] [-y] NAME
 ```
 
 `-V|--vnet` gives the VM its own VNET supervision jail; the default is shared
@@ -100,7 +98,7 @@ right form for the guest (see the pitfalls table) and auto-attaches a framebuffe
 for RHEL-family images.
 
 ```sh
-bastille -p vm create -V \
+bastille plugin vm create -V \
   --image https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.raw \
   --os debian --cpu 2 --memory 2G --disk 20G \
   --nic jailbridge \
@@ -110,7 +108,7 @@ bastille -p vm create -V \
   web1
 ```
 
-Run `bastille -p vm create -h` for the full flag list. `--net-iface` overrides
+Run `bastille plugin vm create -h` for the full flag list. `--net-iface` overrides
 the generated NIC-name form; `--user-data`/`--network-config` supply your own
 cloud-init files verbatim; `--dhcp` uses DHCP instead of a static address. The
 default NIC bridge is `bastille_vm_bridge` (`bridge0`); set `--nic` (or that
@@ -125,8 +123,8 @@ only used blocks move. The receive targets the destination's own pool/prefix, so
 the two hosts need not use the same pool.
 
 ```sh
-bastille -p vm stop web1
-bastille -p vm migrate -s --nic bridge0 web1 cloud@host2   # -s: start on host2
+bastille plugin vm stop web1
+bastille plugin vm migrate -s --nic bridge0 web1 cloud@host2   # -s: start on host2
 ```
 
 - `-s` start on the destination after transfer; `-d` destroy the source copy;
@@ -140,7 +138,7 @@ Destination requirements:
 - A ZFS `.../vms` dataset (bootstrap bastille / this plugin there).
 - To boot on arrival: `sysutils/edk2-bhyve`, the `vmm`/`nmdm` modules (the plugin
   loads them), and a bridge matching the VM's `nics` (or use `--nic`).
-- `-s` uses `bastille -p vm start` on the destination, so its Bastille needs
+- `-s` uses `bastille plugin vm start` on the destination, so its Bastille needs
   plugin support (#1600).
 
 ## Template directives
@@ -182,7 +180,7 @@ Host setup (once), because the device must leave the host and the IOMMU must map
    or at runtime: `devctl set driver -f pci0:172:0:0 ppt`. Confirm with
    `pciconf -l | grep ppt`. A reserved device is unavailable to the host.
 
-`bastille -p vm start` preflights both and refuses with guidance if the IOMMU is
+`bastille plugin vm start` preflights both and refuses with guidance if the IOMMU is
 inactive or the device isn't `ppt`-bound. Passthrough VMs can't be live-anything,
 and a passed-through device can't be shared with the host or another running VM.
 
@@ -237,8 +235,8 @@ plugin.conf    sysrc-style manifest (name, min_version, dependencies)
 examples/      known-good per-distro starter templates
 ```
 
-`plugin.conf` follows the manifest format being discussed in
-BastilleBSD/bastille#1600. It declares the short `-p` name (`vm`), the minimum
+`plugin.conf` follows the manifest format merged in
+BastilleBSD/bastille#1600. It declares the plugin name (`vm`), the minimum
 Bastille version, and host dependencies (`vmm`/`nmdm` kmods, `edk2-bhyve` and
 `qemu-tools`). Bastille versions that don't read it simply ignore it; the plugin
 still loads the kmods itself at start.

@@ -36,7 +36,7 @@ VM_PLUGIN_DIR="$(dirname "$(realpath "$0")")"
 . "${VM_PLUGIN_DIR}/vm.subr"
 
 usage() {
-    error_notify "Usage: bastille -p vm clone [option(s)] NAME NEW_NAME [ADDRESS]"
+    error_notify "Usage: bastille plugin vm clone [option(s)] NAME NEW_NAME [ADDRESS]"
     cat << EOF
 
     Options:

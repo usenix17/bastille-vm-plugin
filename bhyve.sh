@@ -1708,7 +1708,7 @@ vm_migrate() {
 
     # Cold migration only: the guest disk must be quiescent.
     if check_vm_is_running "${vm_name}"; then
-        error_exit "[ERROR]: Stop the VM before migrating: bastille -p vm stop ${vm_name}"
+        error_exit "[ERROR]: Stop the VM before migrating: bastille plugin vm stop ${vm_name}"
     fi
 
     info 1 "\nMigrating VM ${vm_name} -> ${dest} ..."
@@ -1764,7 +1764,7 @@ vm_migrate() {
 
     if [ "${do_start}" = "1" ]; then
         info 1 "Starting ${vm_name} on ${dest}..."
-        ${rsh} "sudo bastille -p vm start ${vm_name}" || \
+        ${rsh} "sudo bastille plugin vm start ${vm_name}" || \
             warn 1 "[WARNING]: Start on ${dest} failed; start it manually there."
     fi
 

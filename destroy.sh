@@ -36,7 +36,7 @@ VM_PLUGIN_DIR="$(dirname "$(realpath "$0")")"
 . "${VM_PLUGIN_DIR}/vm.subr"
 
 usage() {
-    error_notify "Usage: bastille -p vm destroy [option(s)] NAME"
+    error_notify "Usage: bastille plugin vm destroy [option(s)] NAME"
     cat << EOF
 
     Options:

@@ -36,7 +36,7 @@ VM_PLUGIN_DIR="$(dirname "$(realpath "$0")")"
 . "${VM_PLUGIN_DIR}/vm.subr"
 
 usage() {
-    error_notify "Usage: bastille -p vm migrate [option(s)] NAME [user@]DESTHOST"
+    error_notify "Usage: bastille plugin vm migrate [option(s)] NAME [user@]DESTHOST"
     cat << EOF
 
     Cold-migrate a stopped VM to another bhyve host over SSH (ZFS send/recv).
