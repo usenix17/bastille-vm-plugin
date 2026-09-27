@@ -253,8 +253,7 @@ installed.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). Current release: **1.0.0**.
-
+See [CHANGELOG.md](CHANGELOG.md).
 ## License
 
 BSD-3-Clause. Copyright (c) 2026, Sasha Karcz. See [LICENSE](LICENSE).
